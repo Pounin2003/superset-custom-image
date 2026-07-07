@@ -1,0 +1,35 @@
+version: '3.8'
+services:
+  superset:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: superset
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SQLALCHEMY_DATABASE_URI: sqlite:////var/lib/superset/superset.db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - superset_data:/var/lib/superset
+    depends_on:
+      - redis
+    command: >
+      /bin/sh -c "
+      echo 'Upgrading database...' &&
+      superset db upgrade &&
+      echo 'Initializing Superset...' &&
+      superset init &&
+      echo 'Creating admin user...' &&
+      superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin123 2>&1 || echo 'Admin already exists' &&
+      echo 'Starting Superset server...' &&
+      gunicorn -b 0.0.0.0:8088 -w 1 --timeout 120 'superset.app:create_app()'
+      "
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+volumes:
+  superset_data:
